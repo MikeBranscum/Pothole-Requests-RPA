@@ -144,3 +144,4 @@ if st.button("Submit Request", type="primary"):
         except Exception as e:
             st.error("A connection error occurred. Please contact support.")
             
+        active_db.close()
