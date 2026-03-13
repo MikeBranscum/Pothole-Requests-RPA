@@ -1,3 +1,5 @@
+from typing import Any
+
 import streamlit as st
 import sqlite3
 import pandas as pd
@@ -9,7 +11,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.utils import formataddr
 
-st.set_page_config(page_title="Rabine America", layout="wide")
+st.set_page_config(page_title="Rabine America", layout="centered")
 
 # --- EMAIL ALERT ENGINE ---
 def send_email_alert(client_name, client_email, location_count):
@@ -18,9 +20,9 @@ def send_email_alert(client_name, client_email, location_count):
     sender_password = st.secrets["email"]["app_password"]
     recipient_email = st.secrets["email"]["receiver_address"]
 
-    subject = f"New Pothole Request Logged - {client_name}"
+    subject = f"New Request Logged - {client_name}"
     body = f"""
-    A new pavement maintenance request has been submitted.
+    A new patching request has been submitted.
     
     Requested By: {client_name}
     Client Email: {client_email}
@@ -30,7 +32,7 @@ def send_email_alert(client_name, client_email, location_count):
     """
 
     msg = MIMEMultipart()
-    msg['From'] = formataddr(("Rabine Bid Portal", sender_email)) 
+    msg['From'] = formataddr(("Rabine America - Quote Request", sender_email)) 
     msg['To'] = recipient_email
     msg['Subject'] = subject
     msg.attach(MIMEText(body, 'plain'))
@@ -73,37 +75,33 @@ def calculate_price_per_sf(conn, state_id, month_num):
     cursor.execute('''SELECT b.Base_Price_Per_SF, l.Labor_CCI, m.Oil_Freight_Multiplier, r.Material_Multiplier FROM tbl_Baseline_Tiers b JOIN tbl_State_Labor l ON l.State_ID = ? JOIN tbl_State_Seasonality ss ON ss.State_ID = l.State_ID AND ss.Month_Num = ? JOIN tbl_Seasonal_Rules r ON r.Season_ID = ss.Season_ID CROSS JOIN tbl_Macro_Trend m WHERE m.Is_Active = 1 AND b.Tier_ID = 1''', (state_id, month_num))
     res = cursor.fetchone()
     return round(res[0] * res[1] * res[2] * res[3], 2) if res else None
-
 # --- WEB INTERFACE (Client Facing) ---
-st.title("🚧 Pothole Request")
-st.markdown("Please fill out the form below to request pavement maintenance. A Rabine team member will review your submission shortly.")
+st.title("Asphalt Patches - Request a Quote")
+st.markdown("Please provide your information below. A Rabine member will contact you within 24-48 hours.")
 
-st.subheader("Manager Contact Info")
-col1, col2 = st.columns(2)
-with col1:
-    requested_by = st.text_input("Requested By:")
+st.subheader("Submitted By")
+col1,col2= st.columns(2)        
+with  col1:
+    Contact_Person = st.text_input("Contact Person:")
 with col2:
-    email = st.text_input("Email:")
-
-st.subheader("Maintenance Locations")
-st.markdown("Add your locations below. Click the **+** icon at the bottom of the table to add more rows.")
+    Contact_Email = st.text_input("Contact Email:")
+st.subheader("Locations")
+st.markdown("Click the **+** icon at the bottom of the table to add more entries.")
 
 if 'locations_df' not in st.session_state:
-    df = pd.DataFrame(columns=["Street", "City", "State", "Zip_Code", "Priority"])
-    df.loc[1] = ["", "", "IL", "", "Moderate"]
+    df = pd.DataFrame(columns=["Street", "City", "State", "Priority"])
+    df.loc[1]= ["123 ELM ST", "Denver", "CO", "HIGH"]
     st.session_state.locations_df = df
+state_list = ["AL", 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
+'SD','TN','TX','UT','VT','VA','WA', 'WV','WI','WY']
 
-state_list = ["AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"]
-
-edited_df = st.data_editor(
-    st.session_state.locations_df, num_rows="dynamic", use_container_width=True,
-    column_config={"State": st.column_config.SelectboxColumn("State", options=state_list, required=True), "Priority": st.column_config.SelectboxColumn("Priority", options=["Moderate", "HIGH"], required=True, default="Moderate")}
-)
+edited_df = st.data_editor(st.session_state.locations_df, num_rows="dynamic", width='stretch', column_config={"State": st.column_config.SelectboxColumn("State", options=state_list, required=True), 
+"Priority": st.column_config.SelectboxColumn("Priority", options=["Moderate", "HIGH"], required=True, default="Moderate")})
 
 # 3. Submission Engine
 if st.button("Submit Request", type="primary"):
-    if not requested_by or not email:
-        st.error("Please fill out both the 'Requested By' and 'Email' fields.")
+    if not Contact_Person or not Contact_Email:
+        st.error("Please fill out both the 'Contact Person' and 'Contact Email' fields.")
     elif edited_df["Street"].replace("", pd.NA).dropna().empty:
         st.error("Please provide at least one valid street address.")
     else:
@@ -117,9 +115,9 @@ if st.button("Submit Request", type="primary"):
             creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scopes)
             client = gspread.authorize(creds)
             sheet = client.open_by_url(st.secrets["private_gsheet_url"]).sheet1
-            
+                          
             # 2. Process Data
-            for index, row in edited_df.iterrows():
+            for index, row in edited_df.iterrows(Any):
                 street = str(row["Street"]).strip()
                 if street and street != "nan":
                     state = str(row["State"]).strip()
@@ -127,15 +125,15 @@ if st.button("Submit Request", type="primary"):
                     
                     if final_price:
                         sheet.append_row([
-                            timestamp, requested_by, email, street, 
+                            timestamp,Contact_Person , Contact_Email, street, 
                             str(row["City"]).strip(), state, str(row["Zip_Code"]).strip(), 
                             str(row["Priority"]).strip(), final_price
                         ])
                         valid_location_count += 1
-            
+         
             # 3. Fire the Email Alert
             try:
-                send_email_alert(requested_by, email, valid_location_count)
+                send_email_alert(Contact_Person, Contact_Email, valid_location_count)
             except Exception as email_err:
                 print(f"Email failed to send: {email_err}") # Fails silently for the client
             
